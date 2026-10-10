@@ -1,43 +1,440 @@
 <!doctype html>
 <html lang="hu">
 <head>
-  <meta charset="utf-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1">
-  <title>Teszt projekt</title>
-  <style>
-    :root { --bg: #f6f4ef; --fg: #1d1d1b; --accent: #d9622b; }
-    @media (prefers-color-scheme: dark) {
-      :root { --bg: #161614; --fg: #f2efe8; --accent: #f08a50; }
-    }
-    body {
-      margin: 0; min-height: 100vh; display: grid; place-items: center;
-      background: var(--bg); color: var(--fg);
-      font-family: system-ui, -apple-system, sans-serif; padding: 16px;
-    }
-    main { text-align: center; max-width: 420px; }
-    h1 { font-size: 2rem; margin-bottom: .5rem; }
-    p { opacity: .8; line-height: 1.5; }
-    button {
-      margin-top: 1.5rem; padding: .8rem 1.6rem; font-size: 1rem;
-      border: 0; border-radius: 999px; background: var(--accent); color: #fff;
-      cursor: pointer;
-    }
-    #szamlalo { font-size: 3rem; font-weight: 700; margin-top: 1rem; }
-  </style>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Bitcoin figyelő</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wght@12..96,500;12..96,700&family=IBM+Plex+Mono:wght@400;500;600&family=IBM+Plex+Sans:wght@400;500;600&display=swap" rel="stylesheet">
+<style>
+/* Layout: egy oszlop, felül a nagy élő ár, alatta grafikon, majd a kalkulátor és a kis csempék */
+:root {
+  --bg: #eef0f3;
+  --surface: #ffffff;
+  --ink: #14171c;
+  --muted: #5d6573;
+  --line: #d9dde4;
+  --accent: #f7931a;
+  --accent-ink: #1a1206;
+  --up: #11804a;
+  --down: #c2332b;
+  --display: "Bricolage Grotesque", "Segoe UI", system-ui, sans-serif;
+  --body: "IBM Plex Sans", system-ui, -apple-system, sans-serif;
+  --mono: "IBM Plex Mono", ui-monospace, "SF Mono", Menlo, monospace;
+  color-scheme: light;
+}
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    --bg: #0e1013; --surface: #171a1f; --ink: #eceef2; --muted: #98a0ad;
+    --line: #2a2f37; --accent: #f7931a; --accent-ink: #1a1206;
+    --up: #3ccf86; --down: #ff6b61; color-scheme: dark;
+  }
+}
+:root[data-theme="dark"] {
+  --bg: #0e1013; --surface: #171a1f; --ink: #eceef2; --muted: #98a0ad;
+  --line: #2a2f37; --accent: #f7931a; --accent-ink: #1a1206;
+  --up: #3ccf86; --down: #ff6b61; color-scheme: dark;
+}
+* { box-sizing: border-box; }
+html, body { margin: 0; }
+body {
+  background: var(--bg); color: var(--ink);
+  font-family: var(--body); font-size: 16px; line-height: 1.5;
+  padding: env(safe-area-inset-top, 0px) 16px env(safe-area-inset-bottom, 0px);
+}
+.wrap { max-width: 720px; margin: 0 auto; padding-block: 28px 48px; display: grid; gap: 20px; }
+.num { font-family: var(--mono); font-variant-numeric: tabular-nums; }
+
+header { display: flex; align-items: center; justify-content: space-between; gap: 12px; flex-wrap: wrap; }
+.brand { display: flex; align-items: center; gap: 10px; font-family: var(--display); font-weight: 700; font-size: 1.15rem; }
+.coin {
+  width: 30px; height: 30px; border-radius: 50%; background: var(--accent); color: var(--accent-ink);
+  display: grid; place-items: center; font-weight: 700; font-size: 17px; transform: rotate(14deg);
+}
+.seg { display: inline-flex; background: var(--surface); border: 1px solid var(--line); border-radius: 999px; padding: 3px; }
+.seg button {
+  border: 0; background: transparent; color: var(--muted); font: 600 0.85rem var(--body);
+  padding: 6px 14px; border-radius: 999px; cursor: pointer;
+}
+.seg button[aria-pressed="true"] { background: var(--ink); color: var(--bg); }
+.seg button:focus-visible, button:focus-visible, input:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+
+.hero { display: grid; gap: 6px; }
+.label { font-size: 0.75rem; letter-spacing: 0.08em; text-transform: uppercase; color: var(--muted); font-weight: 600; }
+.price {
+  font-family: var(--display); font-weight: 700; font-size: clamp(2.4rem, 11vw, 4.2rem);
+  line-height: 1; letter-spacing: -0.02em; font-variant-numeric: tabular-nums; overflow-wrap: anywhere;
+}
+.sub { display: flex; flex-wrap: wrap; align-items: center; gap: 10px; color: var(--muted); }
+.pill { font: 600 0.85rem var(--mono); padding: 3px 10px; border-radius: 999px; background: var(--line); color: var(--ink); }
+.pill.up { color: var(--up); background: color-mix(in srgb, var(--up) 14%, transparent); }
+.pill.down { color: var(--down); background: color-mix(in srgb, var(--down) 14%, transparent); }
+
+.card { background: var(--surface); border: 1px solid var(--line); border-radius: 16px; padding: 18px; display: grid; gap: 14px; min-width: 0; }
+.card h2 { margin: 0; font-family: var(--display); font-weight: 700; font-size: 1.3rem; text-wrap: balance; }
+.row { display: flex; align-items: center; justify-content: space-between; gap: 10px; flex-wrap: wrap; }
+
+.chart { position: relative; height: 220px; touch-action: pan-y; }
+.chart svg { width: 100%; height: 100%; display: block; overflow: visible; }
+.chart .grid { stroke: var(--line); stroke-width: 1; }
+.chart .axis { fill: var(--muted); font: 11px var(--mono); }
+.chart .lineP { fill: none; stroke: var(--accent); stroke-width: 2; stroke-linejoin: round; }
+.chart .areaP { fill: url(#fillGrad); }
+.chart .cursor { stroke: var(--muted); stroke-dasharray: 3 3; }
+.chart .dot { fill: var(--accent); stroke: var(--surface); stroke-width: 2; }
+.tip {
+  position: absolute; top: 0; pointer-events: none; background: var(--ink); color: var(--bg);
+  font: 500 0.78rem var(--mono); padding: 5px 8px; border-radius: 8px; white-space: nowrap; transform: translateX(-50%);
+}
+.note { font-size: 0.82rem; color: var(--muted); margin: 0; }
+.status { font-size: 0.9rem; color: var(--muted); text-align: center; padding: 70px 0; }
+
+form { display: grid; gap: 12px; grid-template-columns: 1fr 1fr; }
+form label { display: grid; gap: 6px; font-size: 0.85rem; color: var(--muted); font-weight: 500; min-width: 0; }
+input {
+  width: 100%; font: 500 1.05rem var(--mono); color: var(--ink); background: var(--bg);
+  border: 1px solid var(--line); border-radius: 10px; padding: 10px 12px;
+}
+.chips { grid-column: 1 / -1; display: flex; flex-wrap: wrap; gap: 8px; }
+.chip {
+  border: 1px solid var(--line); background: transparent; color: var(--ink);
+  font: 500 0.82rem var(--body); padding: 6px 12px; border-radius: 999px; cursor: pointer;
+}
+.chip:hover { border-color: var(--accent); }
+.result { border-top: 1px dashed var(--line); padding-top: 14px; display: grid; gap: 4px; }
+.result .big { font-family: var(--display); font-weight: 700; font-size: clamp(1.8rem, 8vw, 2.6rem); line-height: 1.1; font-variant-numeric: tabular-nums; overflow-wrap: anywhere; }
+.result .big.up { color: var(--up); }
+.result .big.down { color: var(--down); }
+.result p { margin: 0; color: var(--muted); }
+
+.tiles { display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 12px; }
+.tile { background: var(--surface); border: 1px solid var(--line); border-radius: 14px; padding: 14px 16px; display: grid; gap: 4px; min-width: 0; }
+.tile .v { font: 600 1.35rem var(--mono); font-variant-numeric: tabular-nums; overflow-wrap: anywhere; }
+.bar { height: 6px; background: var(--line); border-radius: 99px; overflow: hidden; }
+.bar i { display: block; height: 100%; background: var(--accent); width: 0; transition: width .6s ease; }
+
+footer { font-size: 0.8rem; color: var(--muted); display: grid; gap: 4px; }
+footer a { color: inherit; }
+@media (max-width: 480px) { form { grid-template-columns: 1fr; } }
+@media (prefers-reduced-motion: reduce) { * { transition: none !important; } }
+</style>
 </head>
 <body>
-  <main>
-    <h1>Szia! 👋</h1>
-    <p>Ez az első teszt projektem a GitHubon. A Claude készítette és töltötte fel.</p>
-    <div id="szamlalo">0</div>
-    <button id="gomb">Nyomj meg!</button>
-  </main>
-  <script>
-    let n = 0;
-    document.getElementById('gomb').addEventListener('click', () => {
-      n++;
-      document.getElementById('szamlalo').textContent = n;
-    });
-  </script>
+<div class="wrap">
+  <header>
+    <div class="brand"><span class="coin" aria-hidden="true">₿</span> Bitcoin figyelő</div>
+    <div class="seg" role="group" aria-label="Pénznem">
+      <button type="button" id="cur-huf" data-cur="huf" aria-pressed="true">Ft</button>
+      <button type="button" id="cur-usd" data-cur="usd" aria-pressed="false">USD</button>
+    </div>
+  </header>
+
+  <section class="hero" aria-live="polite">
+    <span class="label">1 BTC most</span>
+    <div class="price" id="price">…</div>
+    <div class="sub">
+      <span class="pill" id="change">24 óra: …</span>
+      <span class="num" id="other">…</span>
+    </div>
+  </section>
+
+  <section class="card">
+    <div class="row">
+      <h2>Árfolyam</h2>
+      <div class="seg" role="group" aria-label="Időszak">
+        <button type="button" id="r7" data-range="7" aria-pressed="false">7 nap</button>
+        <button type="button" id="r30" data-range="30" aria-pressed="true">30 nap</button>
+        <button type="button" id="r365" data-range="365" aria-pressed="false">1 év</button>
+        <button type="button" id="rmax" data-range="max" aria-pressed="false">Mind</button>
+      </div>
+    </div>
+    <div class="chart" id="chart"><div class="status">Árfolyam betöltése…</div></div>
+    <p class="note" id="chartNote"></p>
+  </section>
+
+  <section class="card">
+    <h2>Mi lett volna, ha…</h2>
+    <form id="calc">
+      <label for="amount">Ennyit vettem volna (<span id="amountCur">Ft</span>)
+        <input id="amount" type="number" inputmode="decimal" min="1" step="any" value="100000">
+      </label>
+      <label for="date">Ezen a napon
+        <input id="date" type="date" value="2017-01-01">
+      </label>
+      <div class="chips">
+        <button type="button" class="chip" data-d="2013-01-01">2013</button>
+        <button type="button" class="chip" data-d="2017-01-01">2017</button>
+        <button type="button" class="chip" data-d="2020-03-15">2020 márc. (covid-mélypont)</button>
+        <button type="button" class="chip" data-d="2021-11-10">2021 nov. (csúcs)</button>
+        <button type="button" class="chip" data-d="ago1">Egy éve</button>
+      </div>
+    </form>
+    <div class="result" id="result"><p>Múltbeli árak betöltése…</p></div>
+  </section>
+
+  <section class="tiles">
+    <div class="tile">
+      <span class="label">1000 Ft hány satoshi?</span>
+      <span class="v" id="sats">…</span>
+      <span class="note">1 BTC = 100 000 000 satoshi</span>
+    </div>
+    <div class="tile">
+      <span class="label">Következő felezésig (halving)</span>
+      <span class="v" id="halving">…</span>
+      <div class="bar" aria-hidden="true"><i id="halvBar"></i></div>
+      <span class="note" id="halvNote">A bányászjutalom 210 000 blokkonként feleződik.</span>
+    </div>
+  </section>
+
+  <footer>
+    <span id="updated">Frissítés…</span>
+    <span>Adatok: CoinGecko, CryptoCompare / Binance, mempool.space, Európai Központi Bank (árfolyam). Nem befektetési tanács.</span>
+  </footer>
+</div>
+
+<script>
+(() => {
+  const $ = (id) => document.getElementById(id);
+  const DAY = 86400000;
+  const state = { cur: "huf", range: "30", live: null, hist: null, chartCache: {} };
+  try { const c = localStorage.getItem("btc-cur"); if (c === "usd" || c === "huf") state.cur = c; } catch (e) {}
+
+  const fmt = (v, cur, digits) => new Intl.NumberFormat("hu-HU", {
+    style: "currency", currency: cur.toUpperCase(),
+    maximumFractionDigits: digits ?? (v < 10 ? 2 : 0), minimumFractionDigits: 0
+  }).format(v);
+  const fmtN = (v, d = 0) => new Intl.NumberFormat("hu-HU", { maximumFractionDigits: d }).format(v);
+  const fmtDate = (t) => new Date(t).toLocaleDateString("hu-HU", { year: "numeric", month: "short", day: "numeric" });
+
+  async function getJSON(url) {
+    const r = await fetch(url);
+    if (!r.ok) throw new Error(r.status);
+    return r.json();
+  }
+
+  /* ---- élő ár ---- */
+  async function loadLive() {
+    try {
+      const d = await getJSON("https://api.coingecko.com/api/v3/simple/price?ids=bitcoin&vs_currencies=usd,huf&include_24hr_change=true");
+      const b = d.bitcoin;
+      state.live = { usd: b.usd, huf: b.huf, chUsd: b.usd_24h_change, chHuf: b.huf_24h_change };
+    } catch (e) {
+      try {
+        const [u, h] = await Promise.all([
+          getJSON("https://api.coinbase.com/v2/prices/BTC-USD/spot"),
+          getJSON("https://api.coinbase.com/v2/prices/BTC-HUF/spot")
+        ]);
+        state.live = { usd: +u.data.amount, huf: +h.data.amount, chUsd: null, chHuf: null };
+      } catch (e2) { if (!state.live) { $("price").textContent = "Nem elérhető"; return; } }
+    }
+    $("updated").textContent = "Utolsó frissítés: " + new Date().toLocaleTimeString("hu-HU") + " (percenként frissül)";
+    renderLive(); renderCalc();
+  }
+  function renderLive() {
+    const L = state.live; if (!L) return;
+    const p = L[state.cur], other = state.cur === "huf" ? "usd" : "huf";
+    $("price").textContent = fmt(p, state.cur);
+    $("other").textContent = "≈ " + fmt(L[other], other);
+    const ch = state.cur === "huf" ? L.chHuf : L.chUsd;
+    const el = $("change");
+    if (ch == null) { el.textContent = "24 óra: n/a"; el.className = "pill"; }
+    else {
+      el.textContent = "24 óra: " + (ch >= 0 ? "+" : "") + fmtN(ch, 2) + "%";
+      el.className = "pill " + (ch >= 0 ? "up" : "down");
+    }
+    $("sats").textContent = fmtN(1000 / L.huf * 1e8) + " sats";
+  }
+
+  /* ---- teljes múltbeli ár (USD, napi) ---- */
+  async function loadHistory() {
+    try {
+      const d = await getJSON("https://min-api.cryptocompare.com/data/v2/histoday?fsym=BTC&tsym=USD&allData=true");
+      const rows = d.Data.Data.filter((x) => x.close > 0).map((x) => [x.time * 1000, x.close]);
+      if (rows.length > 500) return rows;
+    } catch (e) {}
+    try {
+      let start = Date.UTC(2017, 7, 17), rows = [];
+      for (let i = 0; i < 6; i++) {
+        const k = await getJSON("https://data-api.binance.vision/api/v3/klines?symbol=BTCUSDT&interval=1d&limit=1000&startTime=" + start);
+        if (!k.length) break;
+        rows = rows.concat(k.map((x) => [x[0], +x[4]]));
+        start = k[k.length - 1][0] + DAY;
+        if (k.length < 1000) break;
+      }
+      if (rows.length) return rows;
+    } catch (e) {}
+    const d = await getJSON("https://api.coingecko.com/api/v3/coins/bitcoin/market_chart?vs_currency=usd&days=365&interval=daily");
+    return d.prices;
+  }
+  function priceAt(t) {
+    const h = state.hist; if (!h || !h.length) return null;
+    if (t < h[0][0]) return null;
+    let lo = 0, hi = h.length - 1;
+    while (lo < hi) { const m = (lo + hi + 1) >> 1; if (h[m][0] <= t) lo = m; else hi = m - 1; }
+    return h[lo];
+  }
+
+  /* ---- grafikon ---- */
+  async function chartData() {
+    const key = state.range + state.cur;
+    if (state.chartCache[key]) return state.chartCache[key];
+    let pts, note = "";
+    if (state.range === "max") {
+      if (!state.hist) throw new Error("no hist");
+      pts = state.hist.filter((_, i, a) => i % 3 === 0 || i === a.length - 1);
+      note = "A teljes időszak dollárban látható, mert a régi forintos adatok hiányosak. Logaritmikus skála.";
+      state.chartCache[key] = { pts, note, cur: "usd", log: true };
+    } else {
+      const d = await getJSON(`https://api.coingecko.com/api/v3/coins/bitcoin/market_chart?vs_currency=${state.cur}&days=${state.range}`);
+      pts = d.prices;
+      state.chartCache[key] = { pts, note, cur: state.cur, log: false };
+    }
+    return state.chartCache[key];
+  }
+  async function renderChart() {
+    const box = $("chart");
+    let data;
+    try { data = await chartData(); }
+    catch (e) { box.innerHTML = '<div class="status">A grafikon most nem tölthető be. Próbáld újra kicsit később.</div>'; return; }
+    $("chartNote").textContent = data.note;
+    const W = box.clientWidth || 600, H = 220, padL = 4, padR = 4, padT = 14, padB = 22;
+    const pts = data.pts, xs = pts.map((p) => p[0]), ys = pts.map((p) => p[1]);
+    const x0 = xs[0], x1 = xs[xs.length - 1];
+    const tf = data.log ? Math.log10 : (v) => v;
+    let y0 = Math.min(...ys.map(tf)), y1 = Math.max(...ys.map(tf));
+    const padY = (y1 - y0) * 0.08 || 1; y0 -= padY; y1 += padY;
+    const X = (t) => padL + (t - x0) / (x1 - x0) * (W - padL - padR);
+    const Y = (v) => padT + (1 - (tf(v) - y0) / (y1 - y0)) * (H - padT - padB);
+    const line = pts.map((p, i) => (i ? "L" : "M") + X(p[0]).toFixed(1) + " " + Y(p[1]).toFixed(1)).join("");
+    const area = line + `L${X(x1).toFixed(1)} ${H - padB}L${X(x0).toFixed(1)} ${H - padB}Z`;
+    const hi = Math.max(...ys), lo = Math.min(...ys);
+    const hiP = pts[ys.indexOf(hi)], loP = pts[ys.indexOf(lo)];
+    const lab = (p, above) => {
+      const x = Math.min(Math.max(X(p[0]), 40), W - 40);
+      return `<text class="axis" x="${x}" y="${Y(p[1]) + (above ? -6 : 14)}" text-anchor="middle">${fmt(p[1], data.cur)}</text>`;
+    };
+    const grid = [0.25, 0.5, 0.75].map((f) => {
+      const y = padT + f * (H - padT - padB);
+      return `<line class="grid" x1="0" x2="${W}" y1="${y}" y2="${y}"/>`;
+    }).join("");
+    box.innerHTML = `<svg viewBox="0 0 ${W} ${H}" role="img" aria-label="Bitcoin árfolyam grafikon">
+      <defs><linearGradient id="fillGrad" x1="0" y1="0" x2="0" y2="1">
+        <stop offset="0%" stop-color="var(--accent)" stop-opacity="0.28"/>
+        <stop offset="100%" stop-color="var(--accent)" stop-opacity="0"/></linearGradient></defs>
+      ${grid}
+      <path class="areaP" d="${area}"/><path class="lineP" d="${line}"/>
+      ${lab(hiP, true)}${lab(loP, false)}
+      <text class="axis" x="0" y="${H - 4}">${fmtDate(x0)}</text>
+      <text class="axis" x="${W}" y="${H - 4}" text-anchor="end">${fmtDate(x1)}</text>
+      <line class="cursor" id="cur" y1="${padT}" y2="${H - padB}" visible="false" style="display:none"/>
+      <circle class="dot" id="dot" r="5" style="display:none"/>
+    </svg><div class="tip" id="tip" hidden></div>`;
+    const svg = box.querySelector("svg"), cur = $("cur"), dot = $("dot"), tip = $("tip");
+    const move = (ev) => {
+      const r = svg.getBoundingClientRect();
+      const t = x0 + ((ev.clientX - r.left) / r.width * W - padL) / (W - padL - padR) * (x1 - x0);
+      let i = 0, best = Infinity;
+      for (let k = 0; k < xs.length; k++) { const d = Math.abs(xs[k] - t); if (d < best) { best = d; i = k; } }
+      const px = X(xs[i]), py = Y(ys[i]);
+      cur.setAttribute("x1", px); cur.setAttribute("x2", px); cur.style.display = "";
+      dot.setAttribute("cx", px); dot.setAttribute("cy", py); dot.style.display = "";
+      tip.hidden = false;
+      tip.textContent = fmtDate(xs[i]) + " · " + fmt(ys[i], data.cur);
+      const left = px / W * r.width;
+      tip.style.left = Math.min(Math.max(left, 80), r.width - 80) + "px";
+    };
+    const leave = () => { cur.style.display = "none"; dot.style.display = "none"; tip.hidden = true; };
+    svg.addEventListener("pointermove", move);
+    svg.addEventListener("pointerdown", move);
+    svg.addEventListener("pointerleave", leave);
+  }
+
+  /* ---- kalkulátor ---- */
+  const fxCache = {};
+  async function usdHufOn(dateStr) {
+    if (fxCache[dateStr]) return fxCache[dateStr];
+    const d = await getJSON(`https://api.frankfurter.app/${dateStr}?from=USD&to=HUF`);
+    return (fxCache[dateStr] = d.rates.HUF);
+  }
+  let calcSeq = 0;
+  async function renderCalc() {
+    const out = $("result"), L = state.live;
+    if (!state.hist || !L) return;
+    const seq = ++calcSeq;
+    const amount = parseFloat($("amount").value), dateStr = $("date").value;
+    if (!(amount > 0) || !dateStr) { out.innerHTML = "<p>Adj meg egy összeget és egy dátumot.</p>"; return; }
+    const t = Date.parse(dateStr + "T12:00:00Z");
+    const row = priceAt(t);
+    if (!row) { out.innerHTML = `<p>Erről a napról nincs adat. A legkorábbi: ${fmtDate(state.hist[0][0])}.</p>`; return; }
+    if (t > Date.now()) { out.innerHTML = "<p>Ez a dátum még a jövőben van.</p>"; return; }
+    let usdThen = amount, rateNote = "";
+    if (state.cur === "huf") {
+      try { const fx = await usdHufOn(dateStr); usdThen = amount / fx; rateNote = ` (akkor 1 USD = ${fmtN(fx, 1)} Ft)`; }
+      catch (e) { if (seq === calcSeq) out.innerHTML = "<p>Az akkori forint–dollár árfolyam most nem tölthető be. Próbáld USD-ben.</p>"; return; }
+    }
+    if (seq !== calcSeq) return;
+    const btc = usdThen / row[1];
+    const now = btc * L[state.cur];
+    const mult = now / amount, pct = (mult - 1) * 100;
+    out.innerHTML = `
+      <span class="label">Ma ennyit érne</span>
+      <div class="big ${pct >= 0 ? "up" : "down"}">${fmt(now, state.cur)}</div>
+      <p class="num">${pct >= 0 ? "+" : ""}${fmtN(pct, 0)}% · ${fmtN(mult, mult < 10 ? 2 : 0)}×</p>
+      <p>${fmtDate(row[0])}-n 1 BTC ${fmt(row[1], "usd")} volt${rateNote}, így ${fmtN(btc, 8)} BTC-t kaptál volna.</p>`;
+  }
+
+  /* ---- halving ---- */
+  async function loadHalving() {
+    try {
+      const h = await (await fetch("https://mempool.space/api/blocks/tip/height")).text();
+      const height = parseInt(h, 10); if (!height) throw 0;
+      const next = (Math.floor(height / 210000) + 1) * 210000, left = next - height;
+      const days = left * 10 / 60 / 24;
+      const when = new Date(Date.now() + left * 600000);
+      $("halving").textContent = fmtN(left) + " blokk";
+      $("halvNote").textContent = `≈ ${fmtN(days)} nap, kb. ${when.toLocaleDateString("hu-HU", { year: "numeric", month: "long" })}. Jelenlegi blokk: ${fmtN(height)}.`;
+      $("halvBar").style.width = ((210000 - left) / 210000 * 100).toFixed(1) + "%";
+    } catch (e) { $("halving").textContent = "n/a"; }
+  }
+
+  /* ---- vezérlők ---- */
+  function setCur(c) {
+    state.cur = c;
+    try { localStorage.setItem("btc-cur", c); } catch (e) {}
+    document.querySelectorAll("[data-cur]").forEach((b) => b.setAttribute("aria-pressed", b.dataset.cur === c));
+    $("amountCur").textContent = c === "huf" ? "Ft" : "USD";
+    $("amount").value = c === "huf" ? 100000 : 300;
+    renderLive(); renderChart(); renderCalc();
+  }
+  document.querySelectorAll("[data-cur]").forEach((b) => b.addEventListener("click", () => setCur(b.dataset.cur)));
+  document.querySelectorAll("[data-range]").forEach((b) => b.addEventListener("click", () => {
+    state.range = b.dataset.range;
+    document.querySelectorAll("[data-range]").forEach((x) => x.setAttribute("aria-pressed", x === b));
+    renderChart();
+  }));
+  document.querySelectorAll(".chip").forEach((b) => b.addEventListener("click", () => {
+    let d = b.dataset.d;
+    if (d === "ago1") { const x = new Date(Date.now() - 365 * DAY); d = x.toISOString().slice(0, 10); }
+    $("date").value = d; renderCalc();
+  }));
+  $("calc").addEventListener("submit", (e) => { e.preventDefault(); renderCalc(); });
+  $("amount").addEventListener("input", renderCalc);
+  $("date").addEventListener("change", renderCalc);
+  $("date").max = new Date().toISOString().slice(0, 10);
+  let rz; window.addEventListener("resize", () => { clearTimeout(rz); rz = setTimeout(renderChart, 150); });
+
+  setCur(state.cur);
+  loadLive();
+  setInterval(loadLive, 60000);
+  loadHalving();
+  loadHistory().then((h) => {
+    state.hist = h;
+    $("date").min = new Date(h[0][0]).toISOString().slice(0, 10);
+    renderCalc();
+    if (state.range === "max") renderChart();
+  }).catch(() => { $("result").innerHTML = "<p>A múltbeli árak most nem tölthetők be. Próbáld újra kicsit később.</p>"; });
+})();
+</script>
 </body>
 </html>
